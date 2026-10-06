@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Parametric lock screen appearance engine with 20 layout presets and 20 style presets, selected via `~/.config/uwsm-lock-screen/appearance.conf` (defaults preserve the original cinematic look).
+- "Select layout" and "Select style" actions in the wallpaper TUI.
+- "Set wallpaper now" action in the wallpaper TUI for picking a specific wallpaper directly, independent of rotation.
 - `uwsm-lock-wallpaper` now shows the active theme's own wallpapers in its
   home pane (previously only user-added sources were listed), with inline
   `chafa` thumbnails for every entry.
