@@ -222,5 +222,12 @@ Item {
         verticalAlignment: Text.AlignVCenter
       }
     }
+
+    StatusCard {
+      id: lockStatusCard
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: inputField.bottom
+      anchors.topMargin: 32
+    }
   }
 }
