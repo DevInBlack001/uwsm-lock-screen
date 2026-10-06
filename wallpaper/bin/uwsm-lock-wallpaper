@@ -28,6 +28,26 @@ command -v chafa >/dev/null 2>&1 && have_chafa=1
 THUMB_W=22
 THUMB_H=9
 
+# Whether chafa's own terminal auto-detection picked a pixel-graphics
+# protocol (kitty/iterm/sixel - a single escape-sequence "blob" anchored at
+# the cursor) or plain character art ("text" - normal multi-line output).
+# Env-var checks like KITTY_WINDOW_ID are unreliable (unset in some launch
+# contexts even under a kitty-capable terminal), so this asks chafa itself
+# by rendering one real probe image and inspecting the escape bytes it
+# actually emitted. Decided once per run and cached.
+chafa_mode=""
+detect_chafa_mode() {
+  [[ -n "$chafa_mode" ]] && return
+  chafa_mode="text"
+  local probe_path="$1"
+  [[ $have_chafa -eq 1 && -n "$probe_path" && -r "$probe_path" ]] || return
+  local probe
+  probe="$(chafa -s 4x2 -- "$probe_path" 2>/dev/null)"
+  if [[ "$probe" == *$'\033_G'* || "$probe" == *$'\033Pq'* ]]; then
+    chafa_mode="blob"
+  fi
+}
+
 # Renders a row of thumbnails side by side (not stacked), as many as fit the
 # terminal width, instead of one huge column that wastes all the horizontal
 # space. Missing/unreadable images or a missing chafa just leave that cell
@@ -35,6 +55,7 @@ THUMB_H=9
 render_thumbnail_grid() {
   local -a paths=("$@")
   [[ ${#paths[@]} -gt 0 ]] || return 0
+  detect_chafa_mode "${paths[0]}"
   local term_w per_row
   term_w="$(tput cols 2>/dev/null || echo 80)"
   per_row=$(( term_w / (THUMB_W + 2) ))
@@ -43,38 +64,56 @@ render_thumbnail_grid() {
   local i=0
   while [[ $i -lt ${#paths[@]} ]]; do
     local -a row=("${paths[@]:$i:$per_row}")
-    local -A cell=()
-    local max_lines=0 c=0 p out line lc rowline caprow
+    local c p caprow
 
-    for p in "${row[@]}"; do
-      out=""
-      if [[ $have_chafa -eq 1 && -r "$p" ]]; then
-        # Force plain symbol output: chafa's default auto-detected graphics
-        # protocols (kitty/iterm/sixel) position images as cursor-relative
-        # pixel blobs, not text lines, so joining them side by side as
-        # strings breaks into overlapping diagonal smears instead of a grid.
-        out="$(chafa -f symbols -s "${THUMB_W}x${THUMB_H}" -- "$p" 2>/dev/null)"
-      fi
-      lc=0
-      while IFS= read -r line; do
-        cell["$c,$lc"]="$line"
-        lc=$((lc + 1))
-      done <<< "$out"
-      [[ $lc -gt $max_lines ]] && max_lines=$lc
-      c=$((c + 1))
-    done
-
-    local l=0
-    while [[ $l -lt $max_lines ]]; do
-      rowline=""
+    if [[ "$chafa_mode" == "blob" ]]; then
+      # A pixel-graphics protocol anchors each image at the cursor's
+      # current cell as one opaque escape blob, not composable text lines -
+      # so instead of joining captured output as strings (which breaks into
+      # overlapping smears), save the row's start position once and
+      # explicitly move to each column before drawing, restoring between
+      # images so every draw starts from the same anchor regardless of
+      # where the previous image left the cursor. No -f override: this
+      # reuses whichever protocol chafa itself already detected works here.
+      printf '\033[s'
       c=0
-      while [[ $c -lt ${#row[@]} ]]; do
-        rowline+="${cell[$c,$l]:-}  "
+      for p in "${row[@]}"; do
+        printf '\033[u'
+        [[ $c -gt 0 ]] && printf '\033[%dC' "$((c * (THUMB_W + 2)))"
+        [[ -r "$p" ]] && chafa -s "${THUMB_W}x${THUMB_H}" -- "$p" 2>/dev/null
         c=$((c + 1))
       done
-      printf '%s\n' "$rowline"
-      l=$((l + 1))
-    done
+      printf '\033[u'
+      printf '\033[%dB' "$THUMB_H"
+    else
+      local -A cell=()
+      local max_lines=0 out line lc rowline
+      c=0
+      for p in "${row[@]}"; do
+        out=""
+        if [[ $have_chafa -eq 1 && -r "$p" ]]; then
+          out="$(chafa -f symbols -s "${THUMB_W}x${THUMB_H}" -- "$p" 2>/dev/null)"
+        fi
+        lc=0
+        while IFS= read -r line; do
+          cell["$c,$lc"]="$line"
+          lc=$((lc + 1))
+        done <<< "$out"
+        [[ $lc -gt $max_lines ]] && max_lines=$lc
+        c=$((c + 1))
+      done
+      local l=0
+      while [[ $l -lt $max_lines ]]; do
+        rowline=""
+        c=0
+        while [[ $c -lt ${#row[@]} ]]; do
+          rowline+="${cell[$c,$l]:-}  "
+          c=$((c + 1))
+        done
+        printf '%s\n' "$rowline"
+        l=$((l + 1))
+      done
+    fi
 
     caprow=""
     for p in "${row[@]}"; do
@@ -303,6 +342,10 @@ gallery_cache=""
 gallery_cache_sig=""
 
 while true; do
+  # Redraw in place instead of appending another full copy below the last
+  # one every time the loop comes back around after an action.
+  tput clear 2>/dev/null || clear 2>/dev/null || true
+
   status="disabled"
   wp_rotation_enabled "$theme" && status="enabled"
   cur_layout="$(wp_read_appearance layout)"; [[ -n "$cur_layout" ]] || cur_layout="(default)"
@@ -329,4 +372,8 @@ while true; do
     "Select style") select_style ;;
     "Quit"|"") break ;;
   esac
+  # The action just printed a result message above - give it a moment on
+  # screen before the top of the loop clears and redraws, instead of
+  # wiping it out instantly.
+  read -rsn1 -t 2 _ || true
 done
