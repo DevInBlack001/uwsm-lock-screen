@@ -120,9 +120,10 @@ wp_style_preview() {
   shadow="$(wp_preset_field "$js_file" "$name" shadow)"
   underline="$(wp_preset_field "$js_file" "$name" underline)"
   [[ "$underline" == "true" ]] && shadow="n/a (underline)"
-  printf 'alpha:%-5s border:%-3spx radius:%-4s shadow:%s' \
+  printf 'alpha:%-5s border:%-3spx radius:%-4s shadow:%-16s blur:%s' \
     "$(wp_preset_field "$js_file" "$name" bgAlpha)" \
     "$(wp_preset_field "$js_file" "$name" borderWidth)" \
     "$(wp_preset_field "$js_file" "$name" radius)" \
-    "$shadow"
+    "$shadow" \
+    "$(wp_preset_field "$js_file" "$name" blurAmount)"
 }

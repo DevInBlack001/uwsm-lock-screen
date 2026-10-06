@@ -119,7 +119,7 @@ Item {
       source: wallpaper
       autoPaddingEnabled: false
       blurEnabled: root.loadBackground && wallpaper.status === Image.Ready
-      blur: 1.0
+      blur: root.activeStyle.blurAmount !== undefined ? root.activeStyle.blurAmount : 1.0
       blurMax: 128
       blurMultiplier: 1.25
       contrast: -0.08
