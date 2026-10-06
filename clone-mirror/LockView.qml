@@ -119,6 +119,13 @@ Item {
       onPositionChanged: root.wakeRequested()
     }
 
+    ClockWidget {
+      id: lockClock
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: inputField.top
+      anchors.bottomMargin: 32
+    }
+
     BorderSurface {
       id: inputField
       width: root.fieldWidth
