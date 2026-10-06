@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+- `uwsm-lock-wallpaper` now shows the active theme's own wallpapers in its
+  home pane (previously only user-added sources were listed), with inline
+  `chafa` thumbnails for every entry.
+- `install.sh` now installs `gum` and `chafa` automatically via `pacman` if
+  either is missing.
+
+### Changed
+- Restyled the TUI with a bordered header and section labels.
+
 ## [0.3.0] - 2026-10-06
 
 ### Added

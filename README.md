@@ -47,7 +47,9 @@ turn rotation off for a specific theme, run:
 uwsm-lock-wallpaper
 ```
 
-It also appears as **Lock Screen Wallpapers** in your app launcher.
+It shows inline thumbnails of your theme's backgrounds and any sources
+you've added (via `chafa`, installed automatically), and also appears as
+**Lock Screen Wallpapers** in your app launcher.
 
 ## Sub-projects
 

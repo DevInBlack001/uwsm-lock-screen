@@ -18,6 +18,29 @@ sources_file="$(wp_sources_file "$theme")"
 mkdir -p "$(dirname "$sources_file")"
 touch "$sources_file"
 
+have_chafa=0
+command -v chafa >/dev/null 2>&1 && have_chafa=1
+
+# Prints a small inline thumbnail for a readable local image path, or
+# nothing at all if chafa isn't installed or the file can't be read -
+# callers always still print the text caption regardless, so the gallery
+# degrades to a plain list rather than failing.
+render_thumbnail() {
+  local path="$1"
+  [[ $have_chafa -eq 1 && -r "$path" ]] || return 0
+  chafa -s 28x10 -- "$path" 2>/dev/null
+}
+
+# Lists the active theme's own built-in wallpapers (read-only - these
+# aren't in sources_file and can't be removed via remove_source, only
+# toggled on/off as a whole via "Toggle rotation").
+list_theme_backgrounds() {
+  local bg_dir
+  bg_dir="$(wp_theme_backgrounds_dir)"
+  [[ -d "$bg_dir" ]] || return 0
+  find "$bg_dir" -maxdepth 1 -type f 2>/dev/null | sort
+}
+
 list_entries() {
   # Prints "<physical line number>. <entry> [(status)]" - the line number
   # tracks every line in the file (including blanks/comments we skip over),
@@ -100,13 +123,32 @@ toggle_rotation() {
 while true; do
   status="disabled"
   wp_rotation_enabled "$theme" && status="enabled"
-  gum style --border normal --padding "0 1" "Theme: $theme   Rotation: $status"
+  gum style --border rounded --border-foreground 212 --padding "1 2" --margin "1 0" --bold \
+    "Lock Screen Wallpapers" "Theme: $theme    Rotation: $status"
+
+  bg_files="$(list_theme_backgrounds)"
+  if [[ -n "$bg_files" ]]; then
+    gum style --foreground 212 --bold "Theme backgrounds"
+    while IFS= read -r f; do
+      render_thumbnail "$f"
+      gum style --foreground 245 "  $(basename "$f")"
+    done <<< "$bg_files"
+  fi
 
   entries="$(list_entries)"
+  gum style --foreground 212 --bold "Your sources"
   if [[ -n "$entries" ]]; then
-    printf '%s\n' "$entries"
+    while IFS= read -r entry_line; do
+      # entry_line is "<n>. <path-or-url> [(status)]" - pull just the
+      # path/URL back out to thumbnail a local file (URLs without a cache
+      # yet simply get no thumbnail, same graceful-no-image behavior as a
+      # missing/unreadable local file).
+      entry_path="$(printf '%s' "$entry_line" | sed -E 's/^[0-9]+\. ([^ ]+).*/\1/')"
+      wp_is_url "$entry_path" || render_thumbnail "$entry_path"
+      gum style --foreground 245 "  $entry_line"
+    done <<< "$entries"
   else
-    gum style --foreground 3 "(no sources added yet - theme backgrounds still rotate if enabled)"
+    gum style --foreground 3 "  (none added yet)"
   fi
 
   action="$(gum choose "Add source" "Remove source" "Toggle rotation" "Quit" --header "Action")"
