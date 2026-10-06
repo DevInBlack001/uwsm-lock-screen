@@ -49,7 +49,11 @@ render_thumbnail_grid() {
     for p in "${row[@]}"; do
       out=""
       if [[ $have_chafa -eq 1 && -r "$p" ]]; then
-        out="$(chafa -s "${THUMB_W}x${THUMB_H}" -- "$p" 2>/dev/null)"
+        # Force plain symbol output: chafa's default auto-detected graphics
+        # protocols (kitty/iterm/sixel) position images as cursor-relative
+        # pixel blobs, not text lines, so joining them side by side as
+        # strings breaks into overlapping diagonal smears instead of a grid.
+        out="$(chafa -f symbols -s "${THUMB_W}x${THUMB_H}" -- "$p" 2>/dev/null)"
       fi
       lc=0
       while IFS= read -r line; do
