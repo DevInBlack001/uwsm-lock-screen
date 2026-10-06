@@ -130,7 +130,10 @@ toggle_rotation() {
 # the next lock shows exactly this image regardless of rotation setting.
 set_wallpaper_now() {
   local path="$1"
-  [[ -r "$path" ]] || { gum style --foreground 1 "Not readable: $path"; return; }
+  # Re-validate at use time, not just at add time: a source that was a safe
+  # real file when added could have been swapped for a symlink to an
+  # arbitrary file since, and this must not follow it into the lock screen.
+  wp_is_safe_local_path "$path" || { gum style --foreground 1 "Not a safe local file: $path"; return; }
   mkdir -p "$(dirname "$current_wallpaper_link")"
   ln -sfn "$path" "$current_wallpaper_link"
   gum style --foreground 2 "Lock screen will use: $(basename "$path")"
