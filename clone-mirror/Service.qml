@@ -14,7 +14,7 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
-  readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
+  readonly property string currentBackgroundLink: stateHome + "/uwsm-lock-screen/current-wallpaper"
 
   property bool lockRequested: false
   property bool pendingSessionLock: false
@@ -138,7 +138,7 @@ Item {
     queueSessionLock()
 
     Qt.callLater(function() {
-      root.refreshBackground()
+      if (!rotateWallpaperProc.running) rotateWallpaperProc.running = true
       root.refreshFingerprintStatus()
     })
 
@@ -358,6 +358,16 @@ Item {
     interval: 250
     repeat: false
     onTriggered: root.startFingerprint()
+  }
+
+  // Runs the wallpaper rotation script before each lock so backgroundPath
+  // (read via readlinkProc, below) always reflects this lock's pick rather
+  // than racing it. Path is this dev checkout's location; Task 6's install
+  // step rewrites it to the stable ~/.local/bin/ path.
+  Process {
+    id: rotateWallpaperProc
+    command: [Quickshell.env("HOME") + "/Work/uwsm-lock-screen/wallpaper/bin/uwsm-lock-wallpaper-rotate"]
+    onExited: root.refreshBackground()
   }
 
   Process {
