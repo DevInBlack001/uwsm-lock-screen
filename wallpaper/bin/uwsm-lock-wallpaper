@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# readlink -f resolves the symlink install.sh creates in ~/.local/bin/ to
+# this script's real location, so ../lib/ finds the actual library dir
+# instead of a nonexistent one next to the symlink.
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/../lib/wallpaper-pool.sh"
 source "$SCRIPT_DIR/../lib/wallpaper-fetch.sh"
 
@@ -80,12 +83,12 @@ remove_source() {
 
 toggle_rotation() {
   local marker
-  marker="$(wp_enabled_marker "$theme")"
+  marker="$(wp_disabled_marker "$theme")"
   if wp_rotation_enabled "$theme"; then
-    rm -f "$marker"
+    touch "$marker"
     gum style --foreground 3 "Rotation disabled for $theme."
   else
-    touch "$marker"
+    rm -f "$marker"
     gum style --foreground 2 "Rotation enabled for $theme."
   fi
 }

@@ -13,12 +13,14 @@ wp_sources_file() {
   printf '%s/.config/uwsm-lock-screen/wallpapers/%s.list' "$HOME" "$1"
 }
 
-wp_enabled_marker() {
-  printf '%s/.config/uwsm-lock-screen/wallpapers/%s.enabled' "$HOME" "$1"
+wp_disabled_marker() {
+  printf '%s/.config/uwsm-lock-screen/wallpapers/%s.disabled' "$HOME" "$1"
 }
 
+# Rotation is on by default for every theme; the marker is an opt-OUT, not
+# an opt-in, so a theme nobody has configured still rotates.
 wp_rotation_enabled() {
-  [[ -f "$(wp_enabled_marker "$1")" ]]
+  [[ ! -f "$(wp_disabled_marker "$1")" ]]
 }
 
 wp_theme_backgrounds_dir() {

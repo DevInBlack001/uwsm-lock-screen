@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# readlink -f resolves the symlink install.sh creates in ~/.local/bin/ to
+# this script's real location, so ../lib/ finds the actual library dir
+# instead of a nonexistent one next to the symlink.
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/../lib/wallpaper-pool.sh"
 source "$SCRIPT_DIR/../lib/wallpaper-fetch.sh"
 

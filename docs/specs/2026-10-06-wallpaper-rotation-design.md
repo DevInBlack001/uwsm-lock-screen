@@ -66,10 +66,13 @@ there). This is the local half of the rotation pool, for free.
      `current-wallpaper` to the existing shared
      `~/.local/state/omarchy/current/background` - the lock screen never
      ends up with a missing background.
-   - A `rotation-enabled` flag lives as a zero-byte marker file
-     `~/.config/uwsm-lock-screen/wallpapers/<theme-name>.enabled`; its mere
-     presence means rotation is on for that theme (absent = off, matching
-     today's single-wallpaper behavior). The TUI creates/removes it.
+   - Rotation is **on by default** for every theme - no per-theme setup
+     required, so it follows whichever theme is currently active without
+     the user having to configure anything first. A `rotation-disabled`
+     flag lives as a zero-byte marker file
+     `~/.config/uwsm-lock-screen/wallpapers/<theme-name>.disabled`; its mere
+     presence turns rotation OFF for that theme (opt-out, not opt-in). The
+     TUI's "Toggle rotation" action creates/removes this marker.
 
 4. **Service.qml hook** (the one change to previously-untouched code): in
    `beginLock()`, immediately before the existing
