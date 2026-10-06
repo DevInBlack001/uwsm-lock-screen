@@ -25,15 +25,62 @@ current_wallpaper_link="$HOME/.local/state/uwsm-lock-screen/current-wallpaper"
 
 have_chafa=0
 command -v chafa >/dev/null 2>&1 && have_chafa=1
+THUMB_W=22
+THUMB_H=9
 
-# Prints a small inline thumbnail for a readable local image path, or
-# nothing at all if chafa isn't installed or the file can't be read -
-# callers always still print the text caption regardless, so the gallery
-# degrades to a plain list rather than failing.
-render_thumbnail() {
-  local path="$1"
-  [[ $have_chafa -eq 1 && -r "$path" ]] || return 0
-  chafa -s 28x10 -- "$path" 2>/dev/null
+# Renders a row of thumbnails side by side (not stacked), as many as fit the
+# terminal width, instead of one huge column that wastes all the horizontal
+# space. Missing/unreadable images or a missing chafa just leave that cell
+# blank - captions are printed underneath regardless.
+render_thumbnail_grid() {
+  local -a paths=("$@")
+  [[ ${#paths[@]} -gt 0 ]] || return 0
+  local term_w per_row
+  term_w="$(tput cols 2>/dev/null || echo 80)"
+  per_row=$(( term_w / (THUMB_W + 2) ))
+  [[ $per_row -ge 1 ]] || per_row=1
+
+  local i=0
+  while [[ $i -lt ${#paths[@]} ]]; do
+    local -a row=("${paths[@]:$i:$per_row}")
+    local -A cell=()
+    local max_lines=0 c=0 p out line lc rowline caprow
+
+    for p in "${row[@]}"; do
+      out=""
+      if [[ $have_chafa -eq 1 && -r "$p" ]]; then
+        out="$(chafa -s "${THUMB_W}x${THUMB_H}" -- "$p" 2>/dev/null)"
+      fi
+      lc=0
+      while IFS= read -r line; do
+        cell["$c,$lc"]="$line"
+        lc=$((lc + 1))
+      done <<< "$out"
+      [[ $lc -gt $max_lines ]] && max_lines=$lc
+      c=$((c + 1))
+    done
+
+    local l=0
+    while [[ $l -lt $max_lines ]]; do
+      rowline=""
+      c=0
+      while [[ $c -lt ${#row[@]} ]]; do
+        rowline+="${cell[$c,$l]:-}  "
+        c=$((c + 1))
+      done
+      printf '%s\n' "$rowline"
+      l=$((l + 1))
+    done
+
+    caprow=""
+    for p in "${row[@]}"; do
+      caprow+="$(printf '%-*s' "$((THUMB_W + 2))" "$(basename "$p")")"
+    done
+    gum style --foreground 245 "$caprow"
+    echo
+
+    i=$((i + per_row))
+  done
 }
 
 # Lists the active theme's own built-in wallpapers (read-only - these
@@ -158,24 +205,98 @@ pick_wallpaper_now() {
 }
 
 select_layout() {
-  local names picked
+  local names name line picked
   names="$(wp_preset_names_from_js "$LAYOUT_PRESETS_JS")"
   [[ -n "$names" ]] || { gum style --foreground 1 "Could not read layout presets."; return; }
-  picked="$(printf '%s\n' "$names" | gum choose --header "Select layout")"
-  [[ -n "$picked" ]] || return
+  local -a lines=()
+  while IFS= read -r name; do
+    lines+=("$(printf '%-22s %s' "$name" "$(wp_layout_preview "$LAYOUT_PRESETS_JS" "$name")")")
+  done <<< "$names"
+  line="$(printf '%s\n' "${lines[@]}" | gum choose --header "Select layout (name + preview)")"
+  [[ -n "$line" ]] || return
+  picked="${line%% *}"
   wp_write_appearance "$picked" ""
   gum style --foreground 2 "Layout set to: $picked"
 }
 
 select_style() {
-  local names picked
+  local names name line picked
   names="$(wp_preset_names_from_js "$STYLE_PRESETS_JS")"
   [[ -n "$names" ]] || { gum style --foreground 1 "Could not read style presets."; return; }
-  picked="$(printf '%s\n' "$names" | gum choose --header "Select style")"
-  [[ -n "$picked" ]] || return
+  local -a lines=()
+  while IFS= read -r name; do
+    lines+=("$(printf '%-18s %s' "$name" "$(wp_style_preview "$STYLE_PRESETS_JS" "$name")")")
+  done <<< "$names"
+  line="$(printf '%s\n' "${lines[@]}" | gum choose --header "Select style (name + preview)")"
+  [[ -n "$line" ]] || return
+  picked="${line%% *}"
   wp_write_appearance "" "$picked"
   gum style --foreground 2 "Style set to: $picked"
 }
+
+# Signature of everything the gallery render depends on: changes only when
+# a source is added/removed or the theme's background files change, not on
+# every pass through the menu loop. gallery_cache/gallery_cache_sig persist
+# across iterations, so going back from an action (e.g. after picking a
+# layout) redraws instantly from the cached render instead of re-running
+# chafa on every thumbnail again.
+gallery_sig() {
+  local bg_dir
+  bg_dir="$(wp_theme_backgrounds_dir)"
+  printf '%s|%s' \
+    "$(stat -c '%Y %s' "$sources_file" 2>/dev/null)" \
+    "$(find "$bg_dir" -maxdepth 1 -type f -printf '%f %Y|' 2>/dev/null)"
+}
+
+# Builds the gallery view: sorted thumbnail grids with captions underneath
+# each image (photo-app style), not a mixed image+raw-text-listing dump.
+# Theme backgrounds are already filesystem-sorted by list_theme_backgrounds;
+# local sources are sorted by filename here so the grid order stays stable
+# and predictable across redraws instead of following insertion order.
+build_gallery() {
+  local bg_files entries entry_line entry_path cap out
+  local -a bg_paths=() local_paths=() url_captions=()
+
+  out=""
+  bg_files="$(list_theme_backgrounds)"
+  if [[ -n "$bg_files" ]]; then
+    while IFS= read -r f; do bg_paths+=("$f"); done <<< "$bg_files"
+    out+="$(gum style --foreground 212 --bold "Theme backgrounds (${#bg_paths[@]})")"$'\n\n'
+    out+="$(render_thumbnail_grid "${bg_paths[@]}")"$'\n'
+  fi
+
+  entries="$(list_entries)"
+  if [[ -n "$entries" ]]; then
+    while IFS= read -r entry_line; do
+      entry_path="$(printf '%s' "$entry_line" | sed -E 's/^[0-9]+\. ([^ ]+).*/\1/')"
+      if wp_is_url "$entry_path"; then
+        url_captions+=("${entry_line#*. }")
+      else
+        local_paths+=("$entry_path")
+      fi
+    done <<< "$entries"
+  fi
+  [[ ${#local_paths[@]} -gt 0 ]] && mapfile -t local_paths < <(printf '%s\n' "${local_paths[@]}" | awk -F/ '{print $NF, $0}' | sort | cut -d' ' -f2-)
+
+  out+="$(gum style --foreground 212 --bold "Your sources (${#local_paths[@]} local, ${#url_captions[@]} online)")"$'\n\n'
+  if [[ ${#local_paths[@]} -gt 0 ]]; then
+    out+="$(render_thumbnail_grid "${local_paths[@]}")"$'\n'
+  fi
+  if [[ ${#url_captions[@]} -gt 0 ]]; then
+    out+="$(gum style --foreground 3 "  Online (no thumbnail until cached):")"$'\n'
+    for cap in "${url_captions[@]}"; do
+      out+="$(gum style --foreground 245 "    $cap")"$'\n'
+    done
+  fi
+  if [[ ${#local_paths[@]} -eq 0 && ${#url_captions[@]} -eq 0 ]]; then
+    out+="$(gum style --foreground 3 "  (none added yet)")"$'\n'
+  fi
+
+  printf '%s' "$out"
+}
+
+gallery_cache=""
+gallery_cache_sig=""
 
 while true; do
   status="disabled"
@@ -187,34 +308,12 @@ while true; do
     "Theme: $theme    Rotation: $status" \
     "Layout: $cur_layout    Style: $cur_style"
 
-  bg_files="$(list_theme_backgrounds)"
-  if [[ -n "$bg_files" ]]; then
-    gum style --foreground 212 --bold "Theme backgrounds"
-    echo
-    while IFS= read -r f; do
-      render_thumbnail "$f"
-      gum style --foreground 245 "  $(basename "$f")"
-      echo
-    done <<< "$bg_files"
+  current_sig="$(gallery_sig)"
+  if [[ "$current_sig" != "$gallery_cache_sig" ]]; then
+    gallery_cache="$(build_gallery)"
+    gallery_cache_sig="$current_sig"
   fi
-
-  entries="$(list_entries)"
-  gum style --foreground 212 --bold "Your sources"
-  echo
-  if [[ -n "$entries" ]]; then
-    while IFS= read -r entry_line; do
-      # entry_line is "<n>. <path-or-url> [(status)]" - pull just the
-      # path/URL back out to thumbnail a local file (URLs without a cache
-      # yet simply get no thumbnail, same graceful-no-image behavior as a
-      # missing/unreadable local file).
-      entry_path="$(printf '%s' "$entry_line" | sed -E 's/^[0-9]+\. ([^ ]+).*/\1/')"
-      wp_is_url "$entry_path" || render_thumbnail "$entry_path"
-      gum style --foreground 245 "  $entry_line"
-      echo
-    done <<< "$entries"
-  else
-    gum style --foreground 3 "  (none added yet)"
-  fi
+  printf '%s\n' "$gallery_cache"
 
   action="$(gum choose "Set wallpaper now" "Add source" "Remove source" "Toggle rotation" "Select layout" "Select style" "Quit" --header "Action")"
   case "$action" in

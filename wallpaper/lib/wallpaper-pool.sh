@@ -87,3 +87,42 @@ wp_preset_names_from_js() {
     | grep -oE '"[A-Za-z0-9_-]+"' \
     | tr -d '"'
 }
+
+# Pulls one field's raw value (e.g. "top-left", 0.55, true) out of a named
+# preset's object literal in LayoutPresets.js/StylePresets.js, for building
+# a plain-text preview without a node runtime dependency.
+wp_preset_field() {
+  local js_file="$1" name="$2" field="$3" line value
+  [[ -f "$js_file" ]] || return 1
+  line="$(grep -E "^[[:space:]]*\"${name}\":" "$js_file")"
+  [[ -n "$line" ]] || return 1
+  value="$(printf '%s' "$line" | grep -oE "\\b${field}: *[^,}]+" | sed -E "s/^${field}: *//; s/[[:space:]]+$//")"
+  value="${value%\"}"
+  value="${value#\"}"
+  printf '%s' "$value"
+}
+
+# One-line human-readable summary of a layout preset, shown next to its
+# name in the TUI's "Select layout" list as a text preview.
+wp_layout_preview() {
+  local js_file="$1" name="$2"
+  printf 'clock:%-22s status:%-9s password:%-9s scale:%sx' \
+    "$(wp_preset_field "$js_file" "$name" clockAnchor)" \
+    "$(wp_preset_field "$js_file" "$name" statusArrangement)" \
+    "$(wp_preset_field "$js_file" "$name" passwordStyle)" \
+    "$(wp_preset_field "$js_file" "$name" clockScale)"
+}
+
+# One-line human-readable summary of a style preset, shown next to its name
+# in the TUI's "Select style" list as a text preview.
+wp_style_preview() {
+  local js_file="$1" name="$2" shadow underline
+  shadow="$(wp_preset_field "$js_file" "$name" shadow)"
+  underline="$(wp_preset_field "$js_file" "$name" underline)"
+  [[ "$underline" == "true" ]] && shadow="n/a (underline)"
+  printf 'alpha:%-5s border:%-3spx radius:%-4s shadow:%s' \
+    "$(wp_preset_field "$js_file" "$name" bgAlpha)" \
+    "$(wp_preset_field "$js_file" "$name" borderWidth)" \
+    "$(wp_preset_field "$js_file" "$name" radius)" \
+    "$shadow"
+}
