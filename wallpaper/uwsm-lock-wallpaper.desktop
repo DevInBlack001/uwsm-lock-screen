@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Lock Screen Wallpapers
+Comment=Manage wallpaper sources and rotation for the lock screen
+Exec=uwsm-lock-wallpaper
+Icon=preferences-desktop-wallpaper
+Terminal=true
+Categories=Utility;

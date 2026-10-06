@@ -47,6 +47,8 @@ turn rotation off for a specific theme, run:
 uwsm-lock-wallpaper
 ```
 
+It also appears as **Lock Screen Wallpapers** in your app launcher.
+
 ## Sub-projects
 
 1. **Omarchy** - a cloned Quickshell/QML lock plugin (`clone-mirror/`) - **done**

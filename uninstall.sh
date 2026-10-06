@@ -6,6 +6,7 @@ set -euo pipefail
 
 CLONE_DIR="${UWSM_LOCK_CLONE_DIR:-$HOME/.config/omarchy/plugins/$(id -un).lock}"
 BIN_DIR="${UWSM_LOCK_BIN_DIR:-$HOME/.local/bin}"
+APPS_DIR="${UWSM_LOCK_APPS_DIR:-$HOME/.local/share/applications}"
 CONFIG_DIR="$HOME/.config/uwsm-lock-screen"
 CACHE_DIR="$HOME/.cache/uwsm-lock-screen"
 STATE_DIR="$HOME/.local/state/uwsm-lock-screen"
@@ -13,6 +14,7 @@ STATE_DIR="$HOME/.local/state/uwsm-lock-screen"
 echo "This will remove:"
 echo "  - The cloned lock screen plugin ($CLONE_DIR)"
 echo "  - $BIN_DIR/uwsm-lock-wallpaper and uwsm-lock-wallpaper-rotate"
+echo "  - $APPS_DIR/uwsm-lock-wallpaper.desktop (app launcher entry)"
 echo "  - Wallpaper rotation state ($STATE_DIR)"
 echo
 echo "Your wallpaper sources config and download cache will be kept unless"
@@ -35,8 +37,9 @@ else
 fi
 
 rm -f "$BIN_DIR/uwsm-lock-wallpaper" "$BIN_DIR/uwsm-lock-wallpaper-rotate"
+rm -f "$APPS_DIR/uwsm-lock-wallpaper.desktop"
 rm -rf "$STATE_DIR"
-echo "Removed wallpaper scripts and rotation state."
+echo "Removed wallpaper scripts, app launcher entry, and rotation state."
 
 read -r -p "Also delete your wallpaper sources config and cache ($CONFIG_DIR, $CACHE_DIR)? [y/N] " confirm_data
 if [[ "$confirm_data" =~ ^[Yy]$ ]]; then
