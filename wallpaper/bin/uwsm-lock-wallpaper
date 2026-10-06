@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/wallpaper-pool.sh"
+source "$SCRIPT_DIR/../lib/wallpaper-fetch.sh"
+
+theme="$(wp_theme_name)"
+if [[ -z "$theme" ]]; then
+  gum style --foreground 1 "No active Omarchy theme detected."
+  exit 1
+fi
+
+sources_file="$(wp_sources_file "$theme")"
+mkdir -p "$(dirname "$sources_file")"
+touch "$sources_file"
+
+list_entries() {
+  local i=1
+  while IFS= read -r line; do
+    [[ -n "$line" && "$line" != \#* ]] || continue
+    if wp_is_url "$line"; then
+      ext="${line##*.}"
+      [[ "$ext" =~ ^[A-Za-z0-9]{1,5}$ ]] || ext="jpg"
+      cache_path="$(wp_cache_path_for_url "$theme" "$line" "$ext")"
+      if [[ -s "$cache_path" ]]; then
+        echo "$i. $line (cached)"
+      else
+        echo "$i. $line (not cached)"
+      fi
+    else
+      echo "$i. $line"
+    fi
+    i=$((i + 1))
+  done < "$sources_file"
+}
+
+add_source() {
+  local entry
+  entry="$(gum input --placeholder "Local path or https:// URL")"
+  [[ -n "$entry" ]] || return
+
+  if wp_is_url "$entry"; then
+    local ext="${entry##*.}"
+    [[ "$ext" =~ ^[A-Za-z0-9]{1,5}$ ]] || ext="jpg"
+    local cache_path
+    cache_path="$(wp_cache_path_for_url "$theme" "$entry" "$ext")"
+    mkdir -p "$(wp_cache_dir "$theme")"
+    if wp_fetch_url "$entry" "$cache_path"; then
+      echo "$entry" >> "$sources_file"
+      gum style --foreground 2 "Added and cached: $entry"
+    else
+      gum style --foreground 1 "Could not download or validate: $entry"
+    fi
+    return
+  fi
+
+  if wp_is_safe_local_path "$entry"; then
+    echo "$entry" >> "$sources_file"
+    gum style --foreground 2 "Added: $entry"
+  else
+    gum style --foreground 1 "Path must be absolute, exist, and not be a symlink: $entry"
+  fi
+}
+
+remove_source() {
+  local current
+  current="$(list_entries)"
+  [[ -n "$current" ]] || { gum style --foreground 3 "No sources to remove."; return; }
+
+  local picked
+  picked="$(printf '%s\n' "$current" | gum choose --header "Remove which source?")"
+  [[ -n "$picked" ]] || return
+
+  local line_no="${picked%%.*}"
+  grep -vn '^$' "$sources_file" | sed -n "${line_no}p" >/dev/null 2>&1
+  sed -i "${line_no}d" "$sources_file"
+  gum style --foreground 2 "Removed entry $line_no."
+}
+
+toggle_rotation() {
+  local marker
+  marker="$(wp_enabled_marker "$theme")"
+  if wp_rotation_enabled "$theme"; then
+    rm -f "$marker"
+    gum style --foreground 3 "Rotation disabled for $theme."
+  else
+    touch "$marker"
+    gum style --foreground 2 "Rotation enabled for $theme."
+  fi
+}
+
+while true; do
+  status="disabled"
+  wp_rotation_enabled "$theme" && status="enabled"
+  gum style --border normal --padding "0 1" "Theme: $theme   Rotation: $status"
+
+  entries="$(list_entries)"
+  if [[ -n "$entries" ]]; then
+    printf '%s\n' "$entries"
+  else
+    gum style --foreground 3 "(no sources added yet - theme backgrounds still rotate if enabled)"
+  fi
+
+  action="$(gum choose "Add source" "Remove source" "Toggle rotation" "Quit" --header "Action")"
+  case "$action" in
+    "Add source") add_source ;;
+    "Remove source") remove_source ;;
+    "Toggle rotation") toggle_rotation ;;
+    "Quit"|"") break ;;
+  esac
+done
