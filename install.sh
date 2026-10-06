@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLONE_DIR="$HOME/.config/omarchy/plugins/$(id -un).lock"
+CLONE_DIR="${UWSM_LOCK_CLONE_DIR:-$HOME/.config/omarchy/plugins/$(id -un).lock}"
 
 if [[ ! -d "$CLONE_DIR" ]]; then
   echo "No cloned lock screen plugin found - cloning omarchy.lock..."

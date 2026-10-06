@@ -58,10 +58,15 @@ python3 "$TMPDIR_TEST/server.py" "$PORT" "$TMPDIR_TEST/www" >/dev/null 2>&1 &
 SERVER_PID=$!
 sleep 0.5
 
+# The local test server is plain HTTP (no TLS setup needed for a fast,
+# network-independent test), so these calls pass "=http" explicitly as the
+# allowed-protocol override - production callers never do this and get the
+# function's default of https-only, verified separately below.
+
 # Success case: real PNG content-type
 DEST_OK="$TMPDIR_TEST/out-ok.png"
 set +e
-wp_fetch_url "http://127.0.0.1:$PORT/good.png" "$DEST_OK"
+wp_fetch_url "http://127.0.0.1:$PORT/good.png" "$DEST_OK" "=http"
 assert_status "fetch succeeds for image content-type" 0 $?
 set -e
 assert_file_exists "downloaded file kept on success" "$DEST_OK"
@@ -69,7 +74,7 @@ assert_file_exists "downloaded file kept on success" "$DEST_OK"
 # Failure case: wrong content-type must be rejected and cleaned up
 DEST_BAD="$TMPDIR_TEST/out-bad.png"
 set +e
-wp_fetch_url "http://127.0.0.1:$PORT/bad.html" "$DEST_BAD"
+wp_fetch_url "http://127.0.0.1:$PORT/bad.html" "$DEST_BAD" "=http"
 assert_status "fetch rejects non-image content-type" 1 $?
 set -e
 assert_file_absent "rejected download is deleted" "$DEST_BAD"
@@ -77,10 +82,24 @@ assert_file_absent "rejected download is deleted" "$DEST_BAD"
 # Failure case: nonexistent path (connection works, 404)
 DEST_404="$TMPDIR_TEST/out-404.png"
 set +e
-wp_fetch_url "http://127.0.0.1:$PORT/missing.png" "$DEST_404"
+wp_fetch_url "http://127.0.0.1:$PORT/missing.png" "$DEST_404" "=http"
 assert_status "fetch rejects 404" 1 $?
 set -e
 assert_file_absent "404 download is deleted" "$DEST_404"
+
+# Security case: with the default proto (no override), a plain http:// URL
+# must be refused outright, even though the production default allows
+# redirects to stay on https only (CVE-class: https source redirecting
+# down to http).
+DEST_INSECURE="$TMPDIR_TEST/out-insecure.png"
+set +e
+wp_fetch_url "http://127.0.0.1:$PORT/good.png" "$DEST_INSECURE"
+assert_status "fetch rejects http by default (https-only)" 1 $?
+set -e
+assert_file_absent "insecure-protocol download is deleted" "$DEST_INSECURE"
+
+# No leftover .part temp file after a failed download (atomic write check).
+assert_file_absent "no leftover temp file after failed fetch" "$DEST_BAD.part"
 
 if [[ $FAILURES -eq 0 ]]; then
   echo "test-wallpaper-fetch.sh: all assertions passed"

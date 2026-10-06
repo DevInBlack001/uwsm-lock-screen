@@ -362,11 +362,16 @@ Item {
 
   // Runs the wallpaper rotation script before each lock so backgroundPath
   // (read via readlinkProc, below) always reflects this lock's pick rather
-  // than racing it. Path is this dev checkout's location; Task 6's install
-  // step rewrites it to the stable ~/.local/bin/ path.
+  // than racing it. Always points at the stable ~/.local/bin/ symlink
+  // install.sh creates - never a dev-checkout path, so it keeps working
+  // regardless of where (or whether) the source repo is checked out.
+  // Wrapped in `timeout` so a run with several slow/dead URLs in the pool
+  // can't delay rotation (and therefore the lock screen picking up its new
+  // background) past a hard ceiling, on top of each individual download's
+  // own --max-time inside the script.
   Process {
     id: rotateWallpaperProc
-    command: [Quickshell.env("HOME") + "/Work/uwsm-lock-screen/wallpaper/bin/uwsm-lock-wallpaper-rotate"]
+    command: ["/usr/bin/timeout", "20", Quickshell.env("HOME") + "/.local/bin/uwsm-lock-wallpaper-rotate"]
     onExited: root.refreshBackground()
   }
 

@@ -4,8 +4,8 @@
 # lock screen takes back over automatically once the clone is removed.
 set -euo pipefail
 
-CLONE_DIR="$HOME/.config/omarchy/plugins/$(id -un).lock"
-BIN_DIR="$HOME/.local/bin"
+CLONE_DIR="${UWSM_LOCK_CLONE_DIR:-$HOME/.config/omarchy/plugins/$(id -un).lock}"
+BIN_DIR="${UWSM_LOCK_BIN_DIR:-$HOME/.local/bin}"
 CONFIG_DIR="$HOME/.config/uwsm-lock-screen"
 CACHE_DIR="$HOME/.cache/uwsm-lock-screen"
 STATE_DIR="$HOME/.local/state/uwsm-lock-screen"

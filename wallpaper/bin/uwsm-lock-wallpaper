@@ -19,10 +19,16 @@ mkdir -p "$(dirname "$sources_file")"
 touch "$sources_file"
 
 list_entries() {
-  local i=1
+  # Prints "<physical line number>. <entry> [(status)]" - the line number
+  # tracks every line in the file (including blanks/comments we skip over),
+  # not a count of only the displayed entries, so it can be fed straight
+  # into `sed -Nd` later without off-by-N errors from skipped lines.
+  local i=0
   while IFS= read -r line; do
+    i=$((i + 1))
     [[ -n "$line" && "$line" != \#* ]] || continue
     if wp_is_url "$line"; then
+      local ext cache_path
       ext="${line##*.}"
       [[ "$ext" =~ ^[A-Za-z0-9]{1,5}$ ]] || ext="jpg"
       cache_path="$(wp_cache_path_for_url "$theme" "$line" "$ext")"
@@ -34,7 +40,6 @@ list_entries() {
     else
       echo "$i. $line"
     fi
-    i=$((i + 1))
   done < "$sources_file"
 }
 
@@ -76,7 +81,6 @@ remove_source() {
   [[ -n "$picked" ]] || return
 
   local line_no="${picked%%.*}"
-  grep -vn '^$' "$sources_file" | sed -n "${line_no}p" >/dev/null 2>&1
   sed -i "${line_no}d" "$sources_file"
   gum style --foreground 2 "Removed entry $line_no."
 }
