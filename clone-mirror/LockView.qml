@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Ui
 import "LayoutPresets.js" as LayoutPresets
 import "StylePresets.js" as StylePresets
+import "BlurPresets.js" as BlurPresets
 
 Item {
   id: root
@@ -40,13 +41,17 @@ Item {
     : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
 
   // Appearance selection, read from ~/.config/uwsm-lock-screen/appearance.conf
-  // (two lines: "layout=<name>" and "style=<name>"). Defaults match the
-  // previous hardcoded cinematic layout, so an unconfigured install looks
-  // exactly like it did before this feature existed.
+  // (lines "layout=<name>", "style=<name>", "blur=<name>"). Defaults match
+  // the previous hardcoded cinematic layout, so an unconfigured install
+  // looks exactly like it did before this feature existed. Blur is a
+  // standalone axis, independent of the card/field style - not a style
+  // property - so it gets its own name/preset/config key.
   property string layoutName: "cinematic"
   property string styleName: "no-card"
+  property string blurName: "default"
   readonly property var activeLayout: LayoutPresets.wp_layout_preset(root.layoutName)
   readonly property var activeStyle: StylePresets.wp_style_preset(root.styleName)
+  readonly property var activeBlur: BlurPresets.wp_blur_preset(root.blurName)
 
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
@@ -81,6 +86,7 @@ Item {
       var value = line.substring(eq + 1).trim()
       if (key === "layout" && LayoutPresets.wp_layout_exists(value)) root.layoutName = value
       if (key === "style" && StylePresets.wp_style_exists(value)) root.styleName = value
+      if (key === "blur" && BlurPresets.wp_blur_exists(value)) root.blurName = value
     }
   }
 
@@ -119,9 +125,9 @@ Item {
       source: wallpaper
       autoPaddingEnabled: false
       blurEnabled: root.loadBackground && wallpaper.status === Image.Ready
-      blur: root.activeStyle.blurAmount !== undefined ? root.activeStyle.blurAmount : 1.0
-      blurMax: 128
-      blurMultiplier: 1.25
+      blur: root.activeBlur.blur
+      blurMax: root.activeBlur.blurMax
+      blurMultiplier: root.activeBlur.blurMultiplier
       contrast: -0.08
     }
 

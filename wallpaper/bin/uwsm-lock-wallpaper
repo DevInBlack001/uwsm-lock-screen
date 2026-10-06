@@ -21,6 +21,7 @@ touch "$sources_file"
 CLONE_MIRROR_DIR="$SCRIPT_DIR/../../clone-mirror"
 LAYOUT_PRESETS_JS="$CLONE_MIRROR_DIR/LayoutPresets.js"
 STYLE_PRESETS_JS="$CLONE_MIRROR_DIR/StylePresets.js"
+BLUR_PRESETS_JS="$CLONE_MIRROR_DIR/BlurPresets.js"
 current_wallpaper_link="$HOME/.local/state/uwsm-lock-screen/current-wallpaper"
 
 have_chafa=0
@@ -258,7 +259,7 @@ select_layout() {
   line="$(printf '%s\n' "${lines[@]}" | gum choose --header "Select layout (name + preview)")"
   [[ -n "$line" ]] || return
   picked="${line%% *}"
-  wp_write_appearance "$picked" ""
+  wp_write_appearance "$picked" "" ""
   gum style --foreground 2 "Layout set to: $picked"
 }
 
@@ -273,8 +274,25 @@ select_style() {
   line="$(printf '%s\n' "${lines[@]}" | gum choose --header "Select style (name + preview)")"
   [[ -n "$line" ]] || return
   picked="${line%% *}"
-  wp_write_appearance "" "$picked"
+  wp_write_appearance "" "$picked" ""
   gum style --foreground 2 "Style set to: $picked"
+}
+
+# Background blur is a standalone axis, independent of card/field style -
+# its own preset list, its own appearance.conf key, its own TUI action.
+select_blur() {
+  local names name line picked
+  names="$(wp_preset_names_from_js "$BLUR_PRESETS_JS")"
+  [[ -n "$names" ]] || { gum style --foreground 1 "Could not read blur presets."; return; }
+  local -a lines=()
+  while IFS= read -r name; do
+    lines+=("$(printf '%-10s %s' "$name" "$(wp_blur_preview "$BLUR_PRESETS_JS" "$name")")")
+  done <<< "$names"
+  line="$(printf '%s\n' "${lines[@]}" | gum choose --header "Select blur (name + preview)")"
+  [[ -n "$line" ]] || return
+  picked="${line%% *}"
+  wp_write_appearance "" "" "$picked"
+  gum style --foreground 2 "Blur set to: $picked"
 }
 
 # Signature of everything the gallery render depends on: changes only when
@@ -350,10 +368,11 @@ while true; do
   wp_rotation_enabled "$theme" && status="enabled"
   cur_layout="$(wp_read_appearance layout)"; [[ -n "$cur_layout" ]] || cur_layout="(default)"
   cur_style="$(wp_read_appearance style)"; [[ -n "$cur_style" ]] || cur_style="(default)"
+  cur_blur="$(wp_read_appearance blur)"; [[ -n "$cur_blur" ]] || cur_blur="(default)"
   gum style --border rounded --border-foreground 212 --padding "1 2" --margin "1 0" --bold --width 76 \
     "Lock Screen Wallpapers" \
     "Theme: $theme    Rotation: $status" \
-    "Layout: $cur_layout    Style: $cur_style"
+    "Layout: $cur_layout    Style: $cur_style    Blur: $cur_blur"
 
   current_sig="$(gallery_sig)"
   if [[ "$current_sig" != "$gallery_cache_sig" ]]; then
@@ -362,7 +381,7 @@ while true; do
   fi
   printf '%s\n' "$gallery_cache"
 
-  action="$(gum choose "Set wallpaper now" "Add source" "Remove source" "Toggle rotation" "Select layout" "Select style" "Quit" --header "Action")"
+  action="$(gum choose "Set wallpaper now" "Add source" "Remove source" "Toggle rotation" "Select layout" "Select style" "Select blur" "Quit" --header "Action")"
   case "$action" in
     "Set wallpaper now") pick_wallpaper_now ;;
     "Add source") add_source ;;
@@ -370,6 +389,7 @@ while true; do
     "Toggle rotation") toggle_rotation ;;
     "Select layout") select_layout ;;
     "Select style") select_style ;;
+    "Select blur") select_blur ;;
     "Quit"|"") break ;;
   esac
   # The action just printed a result message above - give it a moment on

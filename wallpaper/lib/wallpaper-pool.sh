@@ -63,29 +63,39 @@ wp_read_appearance() {
   sed -n -E "s/^${key}=(.*)$/\1/p" "$f" | tail -n1
 }
 
-# Rewrites appearance.conf with the given layout/style, preserving whichever
-# of the two the caller passes as empty by keeping its current value.
+# Rewrites appearance.conf with the given layout/style/blur, preserving
+# whichever of the three the caller passes as empty by keeping its current
+# value. Blur is a standalone axis (own config key), independent of style.
 wp_write_appearance() {
-  local layout="$1" style="$2" f
+  local layout="${1:-}" style="${2:-}" blur="${3:-}" f
   f="$(wp_appearance_file)"
   mkdir -p "$(dirname "$f")"
   [[ -n "$layout" ]] || layout="$(wp_read_appearance layout)"
   [[ -n "$style" ]] || style="$(wp_read_appearance style)"
+  [[ -n "$blur" ]] || blur="$(wp_read_appearance blur)"
   {
     [[ -n "$layout" ]] && printf 'layout=%s\n' "$layout"
     [[ -n "$style" ]] && printf 'style=%s\n' "$style"
+    [[ -n "$blur" ]] && printf 'blur=%s\n' "$blur"
   } > "$f"
 }
 
-# Extracts the preset name list from a LayoutPresets.js/StylePresets.js
-# "var ORDER = [ ... ];" block without needing a node runtime dependency -
-# the TUI only needs the names, not the preset data itself.
+# Extracts the preset name list from a LayoutPresets.js/StylePresets.js/
+# BlurPresets.js "var ORDER = [ ... ];" block without needing a node
+# runtime dependency - the TUI only needs the names, not the preset data
+# itself. Uses awk (not a sed range) because GNU sed's /start/,/end/ regex
+# range only starts checking the end pattern on the line AFTER the start
+# match, not the start match's own line - so a single-line "var ORDER = [
+# ... ];" would silently keep scanning into whatever "];" came next in the
+# file (this broke a one-line ORDER array in BlurPresets.js in practice).
 wp_preset_names_from_js() {
   local js_file="$1"
   [[ -f "$js_file" ]] || return 1
-  sed -n '/var ORDER = \[/,/\];/p' "$js_file" \
-    | grep -oE '"[A-Za-z0-9_-]+"' \
-    | tr -d '"'
+  awk '
+    /var ORDER = \[/ { in_order = 1 }
+    in_order { print }
+    in_order && /\];/ { exit }
+  ' "$js_file" | grep -oE '"[A-Za-z0-9_-]+"' | tr -d '"'
 }
 
 # Pulls one field's raw value (e.g. "top-left", 0.55, true) out of a named
@@ -120,10 +130,19 @@ wp_style_preview() {
   shadow="$(wp_preset_field "$js_file" "$name" shadow)"
   underline="$(wp_preset_field "$js_file" "$name" underline)"
   [[ "$underline" == "true" ]] && shadow="n/a (underline)"
-  printf 'alpha:%-5s border:%-3spx radius:%-4s shadow:%-16s blur:%s' \
+  printf 'alpha:%-5s border:%-3spx radius:%-4s shadow:%s' \
     "$(wp_preset_field "$js_file" "$name" bgAlpha)" \
     "$(wp_preset_field "$js_file" "$name" borderWidth)" \
     "$(wp_preset_field "$js_file" "$name" radius)" \
-    "$shadow" \
-    "$(wp_preset_field "$js_file" "$name" blurAmount)"
+    "$shadow"
+}
+
+# One-line human-readable summary of a blur preset, shown next to its name
+# in the TUI's "Select blur" list.
+wp_blur_preview() {
+  local js_file="$1" name="$2"
+  printf 'blur:%-5s max:%-5s multiplier:%s' \
+    "$(wp_preset_field "$js_file" "$name" blur)" \
+    "$(wp_preset_field "$js_file" "$name" blurMax)" \
+    "$(wp_preset_field "$js_file" "$name" blurMultiplier)"
 }
