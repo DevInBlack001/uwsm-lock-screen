@@ -7,6 +7,21 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLONE_DIR="${UWSM_LOCK_CLONE_DIR:-$HOME/.config/omarchy/plugins/$(id -un).lock}"
 
+# gum drives the wallpaper TUI; chafa renders its inline wallpaper
+# thumbnails. Both are optional at runtime (the TUI degrades to a plain
+# list without chafa, and errors clearly if gum is missing), but installing
+# them up front means a fresh clone works out of the box. Only prompts for
+# a password if something is actually missing.
+missing_pkgs=()
+command -v gum >/dev/null 2>&1 || missing_pkgs+=("gum")
+command -v chafa >/dev/null 2>&1 || missing_pkgs+=("chafa")
+if [[ ${#missing_pkgs[@]} -gt 0 ]]; then
+  echo "Installing missing dependencies: ${missing_pkgs[*]}"
+  sudo pacman -S --needed --noconfirm "${missing_pkgs[@]}"
+else
+  echo "Dependencies already present: gum, chafa"
+fi
+
 if [[ ! -d "$CLONE_DIR" ]]; then
   echo "No cloned lock screen plugin found - cloning omarchy.lock..."
   omarchy plugin clone omarchy.lock
