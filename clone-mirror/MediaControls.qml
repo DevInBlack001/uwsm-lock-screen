@@ -10,6 +10,8 @@ Row {
   Text {
     text: "󰒮"
     color: root.player && root.player.canGoPrevious ? Color.lock.text : Color.lock.placeholder
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
     font.pixelSize: Style.font.body
     MouseArea {
@@ -27,6 +29,8 @@ Row {
     readonly property bool playPauseEnabled: root.player && (root.player.isPlaying ? root.player.canPause : root.player.canPlay)
     text: root.player && root.player.isPlaying ? "󰏤" : "󰐊"
     color: playPauseEnabled ? Color.lock.text : Color.lock.placeholder
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
     font.pixelSize: Style.font.body
     MouseArea {
@@ -39,6 +43,8 @@ Row {
   Text {
     text: "󰒭"
     color: root.player && root.player.canGoNext ? Color.lock.text : Color.lock.placeholder
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
     font.pixelSize: Style.font.body
     MouseArea {

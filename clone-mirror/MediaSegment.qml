@@ -14,6 +14,8 @@ Row {
     textFormat: Text.PlainText
     text: MediaModel.trackLabel(root.activePlayer)
     color: Color.lock.text
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
     font.pixelSize: Style.font.body
     elide: Text.ElideRight

@@ -18,6 +18,8 @@ Row {
     textFormat: Text.PlainText
     text: NetworkModel.connectionIcon(root.status.kind, root.status.signalStrength)
     color: Color.lock.text
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
     font.pixelSize: Style.font.body
   }
@@ -26,6 +28,8 @@ Row {
     textFormat: Text.PlainText
     text: root.status.label
     color: Color.lock.text
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
     font.pixelSize: Style.font.body
     elide: Text.ElideRight

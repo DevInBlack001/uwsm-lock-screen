@@ -12,19 +12,22 @@ Column {
 
   Text {
     id: timeText
-    anchors.horizontalCenter: parent.horizontalCenter
     color: Color.lock.text
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
-    font.pixelSize: Style.font.heading * 2.6
+    font.pixelSize: Style.font.heading * 1.5
+    font.weight: Font.Light
     text: ClockModel.formatTime(clockTimer.now)
   }
 
   Text {
     id: dateText
-    anchors.horizontalCenter: parent.horizontalCenter
     color: Color.lock.placeholder
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
-    font.pixelSize: Style.font.heading * 1.1
+    font.pixelSize: Style.font.body
     text: ClockModel.formatDate(clockTimer.now)
   }
 

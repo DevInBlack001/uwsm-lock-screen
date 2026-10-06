@@ -14,6 +14,8 @@ Row {
   Text {
     text: root.hasBattery ? BatteryModel.batteryGlyph(root.device.percentage, root.device.state === UPowerDeviceState.Charging) : ""
     color: Color.lock.text
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
     font.pixelSize: Style.font.body
   }
@@ -21,6 +23,8 @@ Row {
   Text {
     text: root.hasBattery ? BatteryModel.formatPercentage(root.device.percentage) : ""
     color: Color.lock.text
+    style: Text.Raised
+    styleColor: "#000000"
     font.family: Style.font.family
     font.pixelSize: Style.font.body
   }

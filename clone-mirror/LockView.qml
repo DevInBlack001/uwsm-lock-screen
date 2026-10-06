@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import Quickshell
 import qs.Commons
 import qs.Ui
 
@@ -121,9 +122,10 @@ Item {
 
     ClockWidget {
       id: lockClock
-      anchors.horizontalCenter: parent.horizontalCenter
-      anchors.bottom: inputField.top
-      anchors.bottomMargin: 32
+      anchors.left: parent.left
+      anchors.top: parent.top
+      anchors.leftMargin: 32
+      anchors.topMargin: 28
       active: root.loadBackground
     }
 
@@ -132,9 +134,11 @@ Item {
       width: root.fieldWidth
       height: root.fieldHeight
       anchors.centerIn: parent
-      color: Color.lock.background
-      borderSpec: root.inputBorderSpec
-      radius: Style.cornerRadius
+      // Cinematic layout: no fill, no box - just the bottom rule line, to
+      // match the underline-only password field in the approved mockup.
+      color: "transparent"
+      borderSpec: Border.withWidth(root.inputBorderSpec, "0 0 2 0")
+      radius: 0
       clip: true
 
       TextInput {
@@ -197,6 +201,8 @@ Item {
         text: root.authenticatingPassword ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
         visible: passwordInput.text.length === 0
         color: root.authenticatingPassword ? Color.lock.text : (root.failureMessage.length > 0 ? Color.lock.textError : Color.lock.placeholder)
+        style: Text.Raised
+        styleColor: "#000000"
         font.family: Style.font.family
         font.pixelSize: root.fieldFontSize
         font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
@@ -217,6 +223,8 @@ Item {
         visible: root.fingerprintConfigured
         text: "󰈷"
         color: Color.lock.placeholder
+        style: Text.Raised
+        styleColor: "#000000"
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
@@ -224,12 +232,46 @@ Item {
       }
     }
 
-    StatusCard {
-      id: lockStatusCard
-      anchors.horizontalCenter: parent.horizontalCenter
-      anchors.top: inputField.bottom
-      anchors.topMargin: 32
-      active: root.loadBackground
+    // Bottom-left: battery + network, scattered as bare shadowed text per the
+    // cinematic layout (no card background).
+    Column {
+      id: lockStatusCorner
+      anchors.left: parent.left
+      anchors.bottom: parent.bottom
+      anchors.leftMargin: 32
+      anchors.bottomMargin: 28
+      spacing: 6
+
+      BatterySegment { id: lockBattery }
+      NetworkSegment { id: lockNetwork; active: root.loadBackground }
+    }
+
+    // Bottom-right: avatar + username, with the media block beneath it.
+    Column {
+      id: lockIdentityCorner
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      anchors.rightMargin: 32
+      anchors.bottomMargin: 28
+      spacing: 6
+
+      Row {
+        anchors.right: parent.right
+        spacing: 8
+        AvatarWidget { width: 22; height: 22; anchors.verticalCenter: parent.verticalCenter }
+        Text {
+          textFormat: Text.PlainText
+          text: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
+          color: Color.lock.text
+          style: Text.Raised
+          styleColor: "#000000"
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          anchors.verticalCenter: parent.verticalCenter
+        }
+      }
+
+      MediaSegment { id: lockMedia; anchors.right: parent.right }
     }
   }
 }
