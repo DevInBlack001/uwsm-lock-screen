@@ -14,7 +14,7 @@ assert.strictEqual(hasVisibleMedia(playing), true);
 assert.strictEqual(hasVisibleMedia(null), false);
 assert.strictEqual(hasVisibleMedia(noControl), false);
 
-assert.strictEqual(trackLabel(playing), "Song A — Artist A");
+assert.strictEqual(trackLabel(playing), "Song A - Artist A");
 assert.strictEqual(trackLabel(idleControllable), "Song B");
 assert.strictEqual(trackLabel(null), "");
 

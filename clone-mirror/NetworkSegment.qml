@@ -8,9 +8,14 @@ Row {
   id: root
   spacing: 6
   property var status: NetworkModel.parseNetworkStatus("")
+  // Gates the poll timer so the preview instance (kept alive for the whole
+  // shell session per the lock plugin's keepLoaded) doesn't poll forever
+  // while the screen isn't actually locked or being previewed.
+  property bool active: true
   visible: NetworkModel.isSegmentVisible(status.kind)
 
   Text {
+    textFormat: Text.PlainText
     text: NetworkModel.connectionIcon(root.status.kind, root.status.signalStrength)
     color: Color.lock.text
     font.family: Style.font.family
@@ -18,6 +23,7 @@ Row {
   }
 
   Text {
+    textFormat: Text.PlainText
     text: root.status.label
     color: Color.lock.text
     font.family: Style.font.family
@@ -36,7 +42,7 @@ Row {
 
   Timer {
     interval: 5000
-    running: true
+    running: root.active
     repeat: true
     triggeredOnStart: true
     onTriggered: if (!statusProc.running) statusProc.running = true

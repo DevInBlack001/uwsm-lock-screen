@@ -11,6 +11,7 @@ Row {
   visible: MediaModel.hasVisibleMedia(activePlayer)
 
   Text {
+    textFormat: Text.PlainText
     text: MediaModel.trackLabel(root.activePlayer)
     color: Color.lock.text
     font.family: Style.font.family

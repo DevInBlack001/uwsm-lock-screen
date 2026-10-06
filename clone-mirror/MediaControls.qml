@@ -20,13 +20,18 @@ Row {
   }
 
   Text {
+    // The action a click actually performs is pause-if-playing or
+    // play-if-not, so enabled must track the capability for THAT action,
+    // not "either capability" - a playing player with canPause:false would
+    // otherwise show an enabled button that silently does nothing.
+    readonly property bool playPauseEnabled: root.player && (root.player.isPlaying ? root.player.canPause : root.player.canPlay)
     text: root.player && root.player.isPlaying ? "󰏤" : "󰐊"
-    color: root.player && (root.player.canPlay || root.player.canPause) ? Color.lock.text : Color.lock.placeholder
+    color: playPauseEnabled ? Color.lock.text : Color.lock.placeholder
     font.family: Style.font.family
     font.pixelSize: Style.font.body
     MouseArea {
       anchors.fill: parent
-      enabled: root.player && (root.player.canPlay || root.player.canPause)
+      enabled: parent.playPauseEnabled
       onClicked: root.player.isPlaying ? root.player.pause() : root.player.play()
     }
   }

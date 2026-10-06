@@ -6,6 +6,9 @@ import "ClockModel.js" as ClockModel
 Column {
   id: root
   spacing: 4
+  // Gates the 1s tick so the preview instance (kept alive for the whole
+  // shell session) doesn't tick forever while not actually locked/previewed.
+  property bool active: true
 
   Text {
     id: timeText
@@ -32,8 +35,9 @@ Column {
 
   Timer {
     interval: 1000
-    running: true
+    running: root.active
     repeat: true
+    triggeredOnStart: true
     onTriggered: clockTimer.now = new Date()
   }
 }

@@ -25,7 +25,7 @@ function trackLabel(player) {
   if (!player) return "";
   var title = player.trackTitle || "";
   var artist = player.trackArtist || "";
-  if (title && artist) return title + " — " + artist;
+  if (title && artist) return title + " - " + artist;
   return title || artist || "";
 }
 

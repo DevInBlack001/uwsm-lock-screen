@@ -124,6 +124,7 @@ Item {
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: inputField.top
       anchors.bottomMargin: 32
+      active: root.loadBackground
     }
 
     BorderSurface {
@@ -228,6 +229,7 @@ Item {
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.top: inputField.bottom
       anchors.topMargin: 32
+      active: root.loadBackground
     }
   }
 }
