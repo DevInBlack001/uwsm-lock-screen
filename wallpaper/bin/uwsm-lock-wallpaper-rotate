@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/wallpaper-pool.sh"
+source "$SCRIPT_DIR/../lib/wallpaper-fetch.sh"
+
+STATE_LINK="$HOME/.local/state/uwsm-lock-screen/current-wallpaper"
+FALLBACK="$HOME/.local/state/omarchy/current/background"
+
+use_fallback() {
+  mkdir -p "$(dirname "$STATE_LINK")"
+  ln -sf "$FALLBACK" "$STATE_LINK"
+  exit 0
+}
+
+theme="$(wp_theme_name)"
+[[ -n "$theme" ]] || use_fallback
+wp_rotation_enabled "$theme" || use_fallback
+
+# Build the candidate pool: theme backgrounds dir entries, then .list entries.
+candidates=()
+bg_dir="$(wp_theme_backgrounds_dir)"
+if [[ -d "$bg_dir" ]]; then
+  while IFS= read -r -d '' f; do
+    candidates+=("$f")
+  done < <(find "$bg_dir" -maxdepth 1 -type f -print0 2>/dev/null)
+fi
+
+sources_file="$(wp_sources_file "$theme")"
+if [[ -f "$sources_file" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" && "$line" != \#* ]] && candidates+=("$line")
+  done < "$sources_file"
+fi
+
+[[ ${#candidates[@]} -gt 0 ]] || use_fallback
+
+# Shuffle candidates so repeated failures don't always retry in the same
+# order, then take the first one that resolves to a usable local file.
+mapfile -t shuffled < <(printf '%s\n' "${candidates[@]}" | shuf)
+
+resolved=""
+for entry in "${shuffled[@]}"; do
+  if wp_is_url "$entry"; then
+    ext="${entry##*.}"
+    [[ "$ext" =~ ^[A-Za-z0-9]{1,5}$ ]] || ext="jpg"
+    cache_path="$(wp_cache_path_for_url "$theme" "$entry" "$ext")"
+    if [[ -s "$cache_path" ]]; then
+      resolved="$cache_path"
+      break
+    fi
+    mkdir -p "$(wp_cache_dir "$theme")"
+    if wp_fetch_url "$entry" "$cache_path"; then
+      resolved="$cache_path"
+      break
+    fi
+    continue
+  fi
+
+  if wp_is_safe_local_path "$entry"; then
+    resolved="$entry"
+    break
+  fi
+done
+
+if [[ -z "$resolved" ]]; then
+  use_fallback
+fi
+
+mkdir -p "$(dirname "$STATE_LINK")"
+ln -sf "$resolved" "$STATE_LINK"
