@@ -1,8 +1,11 @@
 import QtQuick
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "LayoutPresets.js" as LayoutPresets
+import "StylePresets.js" as StylePresets
 
 Item {
   id: root
@@ -18,6 +21,11 @@ Item {
   property string passwordText: ""
   property bool syncingPasswordText: false
 
+  // Set by whichever PasswordField instance the active layout creates, so
+  // forcePasswordFocus()/clearPassword() keep working for Service.qml
+  // regardless of which layout/style preset is selected.
+  property var currentPasswordField: null
+
   readonly property string placeholderText: "Enter Password"
   readonly property int fieldWidth: 381
   readonly property int fieldHeight: 67
@@ -25,19 +33,20 @@ Item {
   readonly property int fieldFontSize: Math.round(Style.font.heading * 1.125)
   readonly property int passwordDotFontSize: Math.round(Style.font.heading * 1.33)
   readonly property int passwordDotLetterSpacing: Math.round(Style.font.heading * 0.19)
-  // Space to keep clear on each side of the field for the fingerprint icon
-  // (icon width plus a gap) so the centered dots never run under it.
-  readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
-  // Shrink the dots to fit once the password outgrows the field, so every
-  // keystroke stays visible — otherwise long passwords clip with no feedback.
-  readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
-    ? Math.min(1, (passwordInput.width - 4) / dotMetrics.advanceWidth)
-    : 1
   readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
   readonly property bool errorState: failureMessage.length > 0
   readonly property var inputBorderSpec: errorState
     ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
     : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
+
+  // Appearance selection, read from ~/.config/uwsm-lock-screen/appearance.conf
+  // (two lines: "layout=<name>" and "style=<name>"). Defaults match the
+  // previous hardcoded cinematic layout, so an unconfigured install looks
+  // exactly like it did before this feature existed.
+  property string layoutName: "cinematic"
+  property string styleName: "no-card"
+  readonly property var activeLayout: LayoutPresets.wp_layout_preset(root.layoutName)
+  readonly property var activeStyle: StylePresets.wp_style_preset(root.styleName)
 
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
@@ -54,38 +63,41 @@ Item {
   }
 
   function forcePasswordFocus() {
-    passwordInput.forceActiveFocus()
+    if (root.currentPasswordField) root.currentPasswordField.forcePasswordFocus()
   }
 
   function clearPassword() {
     passwordTextEdited("")
   }
 
-  function syncPasswordText() {
-    if (passwordInput.text === passwordText) return
-    syncingPasswordText = true
-    passwordInput.text = passwordText
-    syncingPasswordText = false
+  function parseAppearanceConfig(text) {
+    var lines = String(text || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim()
+      if (line.length === 0 || line.charAt(0) === "#") continue
+      var eq = line.indexOf("=")
+      if (eq === -1) continue
+      var key = line.substring(0, eq).trim()
+      var value = line.substring(eq + 1).trim()
+      if (key === "layout" && LayoutPresets.wp_layout_exists(value)) root.layoutName = value
+      if (key === "style" && StylePresets.wp_style_exists(value)) root.styleName = value
+    }
   }
 
-  onPasswordTextChanged: syncPasswordText()
-  onInputEnabledChanged: {
-    if (inputEnabled) Qt.callLater(forcePasswordFocus)
-  }
-  Component.onCompleted: {
-    syncPasswordText()
-    if (inputEnabled) Qt.callLater(forcePasswordFocus)
+  function refreshAppearanceConfig() {
+    if (!appearanceConfigProc.running) appearanceConfigProc.running = true
   }
 
-  // Measures the masked password at full size; passwordDotScale compares this
-  // against the field width to decide how far the dots must shrink to fit.
-  TextMetrics {
-    id: dotMetrics
-    font.family: Style.font.family
-    font.pixelSize: root.passwordDotFontSize
-    font.letterSpacing: root.passwordDotLetterSpacing
-    text: "●".repeat(passwordInput.text.length)
+  Process {
+    id: appearanceConfigProc
+    command: ["cat", Quickshell.env("HOME") + "/.config/uwsm-lock-screen/appearance.conf"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.parseAppearanceConfig(text)
+    }
   }
+
+  Component.onCompleted: root.refreshAppearanceConfig()
 
   Rectangle {
     anchors.fill: parent
@@ -120,158 +132,11 @@ Item {
       onPositionChanged: root.wakeRequested()
     }
 
-    ClockWidget {
-      id: lockClock
-      anchors.left: parent.left
-      anchors.top: parent.top
-      anchors.leftMargin: 32
-      anchors.topMargin: 28
-      active: root.loadBackground
-    }
-
-    BorderSurface {
-      id: inputField
-      width: root.fieldWidth
-      height: root.fieldHeight
-      anchors.centerIn: parent
-      // Cinematic layout: no fill, no box - just the bottom rule line, to
-      // match the underline-only password field in the approved mockup.
-      color: "transparent"
-      borderSpec: Border.withWidth(root.inputBorderSpec, "0 0 2 0")
-      radius: 0
-      clip: true
-
-      TextInput {
-        id: passwordInput
-        anchors.fill: parent
-        anchors.topMargin: inputField.borderTop
-        // Reserve the fingerprint icon's width on both sides so the centered
-        // dots stay symmetric and never slide under the icon as they grow.
-        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve
-        anchors.bottomMargin: inputField.borderBottom
-        anchors.leftMargin: inputField.borderLeft + 18 + root.fingerprintReserve
-        verticalAlignment: TextInput.AlignVCenter
-        horizontalAlignment: TextInput.AlignHCenter
-        activeFocusOnPress: true
-        clip: true
-        enabled: root.inputEnabled && !root.authenticatingPassword
-        readOnly: root.authenticatingPassword
-        echoMode: TextInput.Password
-        passwordCharacter: "\u25CF"
-        passwordMaskDelay: 0
-        color: Color.lock.text
-        selectionColor: Color.lock.selection
-        selectedTextColor: Color.lock.text
-        font.family: Style.font.family
-        font.pixelSize: text.length > 0 ? Math.max(1, Math.floor(root.passwordDotFontSize * root.passwordDotScale)) : root.fieldFontSize
-        font.letterSpacing: text.length > 0 ? root.passwordDotLetterSpacing * root.passwordDotScale : 0
-        cursorVisible: activeFocus && root.showPasswordCursor && text.length > 0
-        cursorDelegate: Rectangle {
-          width: 2
-          color: Color.lock.text
-          visible: passwordInput.cursorVisible
-        }
-
-        onTextChanged: {
-          if (!root.syncingPasswordText) root.passwordTextEdited(text)
-          if (text.length > 0) {
-            root.wakeRequested()
-          }
-          if (text.length > 0 && root.failureMessage.length > 0) root.clearFailureRequested()
-        }
-
-        onAccepted: {
-          var submitted = root.passwordText
-          root.passwordTextEdited("")
-          if (submitted.length > 0) root.submitPassword(submitted)
-        }
-
-        Keys.onPressed: function(event) {
-          root.wakeRequested()
-          if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
-            root.passwordTextEdited("")
-            event.accepted = true
-          }
-        }
-      }
-
-      Text {
-        textFormat: Text.PlainText
-        anchors.fill: passwordInput
-        text: root.authenticatingPassword ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
-        visible: passwordInput.text.length === 0
-        color: root.authenticatingPassword ? Color.lock.text : (root.failureMessage.length > 0 ? Color.lock.textError : Color.lock.placeholder)
-        style: Text.Raised
-        styleColor: "#000000"
-        font.family: Style.font.family
-        font.pixelSize: root.fieldFontSize
-        font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
-      }
-
-      // Fingerprint hint pinned inside the field's right edge when a sensor is
-      // enrolled, so the user knows they can touch to unlock instead of typing.
-      // Matches hyprlock, which draws its fingerprint icon in the same spot.
-      Text {
-        id: fingerprintIcon
-        objectName: "fingerprintIndicator"
-        anchors.right: parent.right
-        anchors.rightMargin: inputField.borderRight + 18
-        anchors.verticalCenter: parent.verticalCenter
-        visible: root.fingerprintConfigured
-        text: "󰈷"
-        color: Color.lock.placeholder
-        style: Text.Raised
-        styleColor: "#000000"
-        font.family: Style.font.family
-        font.pixelSize: Math.round(root.fieldFontSize * 1.1)
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-      }
-    }
-
-    // Bottom-left: battery + network, scattered as bare shadowed text per the
-    // cinematic layout (no card background).
-    Column {
-      id: lockStatusCorner
-      anchors.left: parent.left
-      anchors.bottom: parent.bottom
-      anchors.leftMargin: 32
-      anchors.bottomMargin: 28
-      spacing: 6
-
-      BatterySegment { id: lockBattery }
-      NetworkSegment { id: lockNetwork; active: root.loadBackground }
-    }
-
-    // Bottom-right: avatar + username, with the media block beneath it.
-    Column {
-      id: lockIdentityCorner
-      anchors.right: parent.right
-      anchors.bottom: parent.bottom
-      anchors.rightMargin: 32
-      anchors.bottomMargin: 28
-      spacing: 6
-
-      Row {
-        anchors.right: parent.right
-        spacing: 8
-        AvatarWidget { width: 22; height: 22; anchors.verticalCenter: parent.verticalCenter }
-        Text {
-          textFormat: Text.PlainText
-          text: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
-          color: Color.lock.text
-          style: Text.Raised
-          styleColor: "#000000"
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body
-          anchors.verticalCenter: parent.verticalCenter
-        }
-      }
-
-      MediaSegment { id: lockMedia; anchors.right: parent.right }
+    AdaptiveLayout {
+      anchors.fill: parent
+      root: root
+      layout: root.activeLayout
+      style: root.activeStyle
     }
   }
 }

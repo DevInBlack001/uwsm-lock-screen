@@ -49,3 +49,41 @@ wp_cache_path_for_url() {
   hash="$(printf '%s' "$url" | sha256sum | cut -d' ' -f1)"
   printf '%s/%s.%s' "$(wp_cache_dir "$theme")" "$hash" "$ext"
 }
+
+wp_appearance_file() {
+  printf '%s/.config/uwsm-lock-screen/appearance.conf' "$HOME"
+}
+
+# Reads the current value of "layout" or "style" from appearance.conf, or
+# prints nothing if the file or key doesn't exist yet.
+wp_read_appearance() {
+  local key="$1" f
+  f="$(wp_appearance_file)"
+  [[ -f "$f" ]] || return 0
+  sed -n -E "s/^${key}=(.*)$/\1/p" "$f" | tail -n1
+}
+
+# Rewrites appearance.conf with the given layout/style, preserving whichever
+# of the two the caller passes as empty by keeping its current value.
+wp_write_appearance() {
+  local layout="$1" style="$2" f
+  f="$(wp_appearance_file)"
+  mkdir -p "$(dirname "$f")"
+  [[ -n "$layout" ]] || layout="$(wp_read_appearance layout)"
+  [[ -n "$style" ]] || style="$(wp_read_appearance style)"
+  {
+    [[ -n "$layout" ]] && printf 'layout=%s\n' "$layout"
+    [[ -n "$style" ]] && printf 'style=%s\n' "$style"
+  } > "$f"
+}
+
+# Extracts the preset name list from a LayoutPresets.js/StylePresets.js
+# "var ORDER = [ ... ];" block without needing a node runtime dependency -
+# the TUI only needs the names, not the preset data itself.
+wp_preset_names_from_js() {
+  local js_file="$1"
+  [[ -f "$js_file" ]] || return 1
+  sed -n '/var ORDER = \[/,/\];/p' "$js_file" \
+    | grep -oE '"[A-Za-z0-9_-]+"' \
+    | tr -d '"'
+}

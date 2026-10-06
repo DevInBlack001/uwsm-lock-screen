@@ -30,9 +30,13 @@ else
 fi
 
 echo "Deploying plugin files from $SCRIPT_DIR/clone-mirror/ to $CLONE_DIR/..."
-# Retired in the layout-3 rework - remove if present from an older install,
-# since a plain copy never deletes files that no longer exist in the repo.
-rm -f "$CLONE_DIR/StatusCard.qml" "$CLONE_DIR/DividerModel.js" "$CLONE_DIR/DividerModel.test.js"
+# StatusCard.qml was retired in the layout-3 rework and superseded by
+# AdaptiveStatusCard.qml - remove it if present from an older install, since
+# a plain copy never deletes files that no longer exist in the repo.
+# DividerModel.js/.test.js are NOT stale: they were removed in that same
+# rework but then recreated for AdaptiveStatusCard.qml's divider logic, so
+# they must stay.
+rm -f "$CLONE_DIR/StatusCard.qml"
 
 # manifest.json is deliberately not copied - it's generated per-machine by
 # `omarchy plugin clone` (carries this user's own plugin id). *.test.js

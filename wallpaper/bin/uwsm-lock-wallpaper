@@ -18,6 +18,11 @@ sources_file="$(wp_sources_file "$theme")"
 mkdir -p "$(dirname "$sources_file")"
 touch "$sources_file"
 
+CLONE_MIRROR_DIR="$SCRIPT_DIR/../../clone-mirror"
+LAYOUT_PRESETS_JS="$CLONE_MIRROR_DIR/LayoutPresets.js"
+STYLE_PRESETS_JS="$CLONE_MIRROR_DIR/StylePresets.js"
+current_wallpaper_link="$HOME/.local/state/uwsm-lock-screen/current-wallpaper"
+
 have_chafa=0
 command -v chafa >/dev/null 2>&1 && have_chafa=1
 
@@ -120,23 +125,79 @@ toggle_rotation() {
   fi
 }
 
+# Sets a specific wallpaper right now, bypassing random rotation, by writing
+# straight to the same symlink target uwsm-lock-wallpaper-rotate uses -
+# the next lock shows exactly this image regardless of rotation setting.
+set_wallpaper_now() {
+  local path="$1"
+  [[ -r "$path" ]] || { gum style --foreground 1 "Not readable: $path"; return; }
+  mkdir -p "$(dirname "$current_wallpaper_link")"
+  ln -sfn "$path" "$current_wallpaper_link"
+  gum style --foreground 2 "Lock screen will use: $(basename "$path")"
+}
+
+pick_wallpaper_now() {
+  local bg_files entries choices picked path
+  bg_files="$(list_theme_backgrounds)"
+  entries="$(list_entries)"
+  choices=()
+  [[ -n "$bg_files" ]] && while IFS= read -r f; do choices+=("$f"); done <<< "$bg_files"
+  if [[ -n "$entries" ]]; then
+    while IFS= read -r entry_line; do
+      path="$(printf '%s' "$entry_line" | sed -E 's/^[0-9]+\. ([^ ]+).*/\1/')"
+      wp_is_url "$path" || choices+=("$path")
+    done <<< "$entries"
+  fi
+  [[ ${#choices[@]} -gt 0 ]] || { gum style --foreground 3 "No local wallpapers available to pick yet."; return; }
+  picked="$(printf '%s\n' "${choices[@]}" | gum choose --header "Set which wallpaper now?")"
+  [[ -n "$picked" ]] || return
+  set_wallpaper_now "$picked"
+}
+
+select_layout() {
+  local names picked
+  names="$(wp_preset_names_from_js "$LAYOUT_PRESETS_JS")"
+  [[ -n "$names" ]] || { gum style --foreground 1 "Could not read layout presets."; return; }
+  picked="$(printf '%s\n' "$names" | gum choose --header "Select layout")"
+  [[ -n "$picked" ]] || return
+  wp_write_appearance "$picked" ""
+  gum style --foreground 2 "Layout set to: $picked"
+}
+
+select_style() {
+  local names picked
+  names="$(wp_preset_names_from_js "$STYLE_PRESETS_JS")"
+  [[ -n "$names" ]] || { gum style --foreground 1 "Could not read style presets."; return; }
+  picked="$(printf '%s\n' "$names" | gum choose --header "Select style")"
+  [[ -n "$picked" ]] || return
+  wp_write_appearance "" "$picked"
+  gum style --foreground 2 "Style set to: $picked"
+}
+
 while true; do
   status="disabled"
   wp_rotation_enabled "$theme" && status="enabled"
-  gum style --border rounded --border-foreground 212 --padding "1 2" --margin "1 0" --bold \
-    "Lock Screen Wallpapers" "Theme: $theme    Rotation: $status"
+  cur_layout="$(wp_read_appearance layout)"; [[ -n "$cur_layout" ]] || cur_layout="(default)"
+  cur_style="$(wp_read_appearance style)"; [[ -n "$cur_style" ]] || cur_style="(default)"
+  gum style --border rounded --border-foreground 212 --padding "1 2" --margin "1 0" --bold --width 76 \
+    "Lock Screen Wallpapers" \
+    "Theme: $theme    Rotation: $status" \
+    "Layout: $cur_layout    Style: $cur_style"
 
   bg_files="$(list_theme_backgrounds)"
   if [[ -n "$bg_files" ]]; then
     gum style --foreground 212 --bold "Theme backgrounds"
+    echo
     while IFS= read -r f; do
       render_thumbnail "$f"
       gum style --foreground 245 "  $(basename "$f")"
+      echo
     done <<< "$bg_files"
   fi
 
   entries="$(list_entries)"
   gum style --foreground 212 --bold "Your sources"
+  echo
   if [[ -n "$entries" ]]; then
     while IFS= read -r entry_line; do
       # entry_line is "<n>. <path-or-url> [(status)]" - pull just the
@@ -146,16 +207,20 @@ while true; do
       entry_path="$(printf '%s' "$entry_line" | sed -E 's/^[0-9]+\. ([^ ]+).*/\1/')"
       wp_is_url "$entry_path" || render_thumbnail "$entry_path"
       gum style --foreground 245 "  $entry_line"
+      echo
     done <<< "$entries"
   else
     gum style --foreground 3 "  (none added yet)"
   fi
 
-  action="$(gum choose "Add source" "Remove source" "Toggle rotation" "Quit" --header "Action")"
+  action="$(gum choose "Set wallpaper now" "Add source" "Remove source" "Toggle rotation" "Select layout" "Select style" "Quit" --header "Action")"
   case "$action" in
+    "Set wallpaper now") pick_wallpaper_now ;;
     "Add source") add_source ;;
     "Remove source") remove_source ;;
     "Toggle rotation") toggle_rotation ;;
+    "Select layout") select_layout ;;
+    "Select style") select_style ;;
     "Quit"|"") break ;;
   esac
 done
